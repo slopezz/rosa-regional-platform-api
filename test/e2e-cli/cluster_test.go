@@ -521,28 +521,39 @@ var _ = Describe("ROSACTL CLI E2E Tests", Ordered, func() {
 		GinkgoWriter.Printf("Waiting for resource bundles for cluster %s to be fully removed...\n", clusterID)
 
 		Eventually(func(g Gomega) {
-			response, err := apiClient.Get("/api/v0/resource_bundles?page=1&size=100", accountID)
-			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(response.StatusCode).To(Equal(http.StatusOK))
-
-			var list struct {
-				Items []map[string]interface{} `json:"items"`
-			}
-			g.Expect(json.Unmarshal(response.Body, &list)).To(Succeed())
-
 			remaining := 0
-			for _, item := range list.Items {
-				metadata, ok := item["metadata"].(map[string]interface{})
-				if !ok {
-					continue
+			page := 1
+			for {
+				response, err := apiClient.Get(fmt.Sprintf("/api/v0/resource_bundles?page=%d&size=100", page), accountID)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(response.StatusCode).To(Equal(http.StatusOK))
+
+				var list struct {
+					Page  int                      `json:"page"`
+					Size  int                      `json:"size"`
+					Total int                      `json:"total"`
+					Items []map[string]interface{} `json:"items"`
 				}
-				name, ok := metadata["name"].(string)
-				if !ok {
-					continue
+				g.Expect(json.Unmarshal(response.Body, &list)).To(Succeed())
+
+				for _, item := range list.Items {
+					metadata, ok := item["metadata"].(map[string]interface{})
+					if !ok {
+						continue
+					}
+					name, ok := metadata["name"].(string)
+					if !ok {
+						continue
+					}
+					if strings.Contains(name, clusterID) {
+						remaining++
+					}
 				}
-				if strings.Contains(name, clusterID) {
-					remaining++
+
+				if page*100 >= list.Total || len(list.Items) == 0 {
+					break
 				}
+				page++
 			}
 
 			GinkgoWriter.Printf("Resource bundles remaining for cluster %s: %d\n", clusterID, remaining)
