@@ -48,7 +48,19 @@ func customerEnv() []string {
 	if profile == "" {
 		profile = "rrp-customer"
 	}
-	return []string{"AWS_PROFILE=" + profile}
+	// Strip inherited static AWS credentials so AWS_PROFILE controls credential
+	// resolution; static vars take precedence over AWS_PROFILE in the SDK chain.
+	env := os.Environ()
+	filtered := make([]string, 0, len(env)+1)
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "AWS_ACCESS_KEY_ID=") ||
+			strings.HasPrefix(kv, "AWS_SECRET_ACCESS_KEY=") ||
+			strings.HasPrefix(kv, "AWS_SESSION_TOKEN=") {
+			continue
+		}
+		filtered = append(filtered, kv)
+	}
+	return append(filtered, "AWS_PROFILE="+profile)
 }
 
 var _ = Describe("ROSACTL CLI E2E Tests", Ordered, func() {
@@ -103,7 +115,7 @@ var _ = Describe("ROSACTL CLI E2E Tests", Ordered, func() {
 		if customerAccountID == "" {
 			GinkgoWriter.Printf("No E2E_CUSTOMER_ACCOUNT_ID set, using AWS STS caller identity\n")
 			cmd := exec.Command("aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
-			cmd.Env = append(os.Environ(), customerEnv()...)
+			cmd.Env = customerEnv()
 			output, err := cmd.CombinedOutput()
 			if err != nil {
 				Fail("Failed to get AWS customer account ID: " + err.Error())
@@ -157,7 +169,7 @@ var _ = Describe("ROSACTL CLI E2E Tests", Ordered, func() {
 		GinkgoWriter.Printf("Creating new cluster-vpc: %s\n", clusterName)
 		// GinkgoWriter.Printf("Command: %s %s %s %s %s\n", ROSACTL_BIN, "cluster-vpc", "create", clusterName, "--region", region, "--availability-zones", "us-east-1a")
 		cmd := exec.Command(ROSACTL_BIN, "cluster-vpc", "create", clusterName, "--region", region, "--availability-zones", "us-east-1a")
-		cmd.Env = append(os.Environ(), customerEnv()...)
+		cmd.Env = customerEnv()
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
@@ -171,7 +183,7 @@ var _ = Describe("ROSACTL CLI E2E Tests", Ordered, func() {
 	It("should be able to list the cluster-vpc and find that cluster in the list", Label("vpc-list", "setup"), func() {
 		GinkgoWriter.Printf("Listing cluster-vpc: %s\n", clusterName)
 		cmd := exec.Command(ROSACTL_BIN, "cluster-vpc", "list", "--region", region)
-		cmd.Env = append(os.Environ(), customerEnv()...)
+		cmd.Env = customerEnv()
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			Fail("Failed to list the cluster-vpc: " + err.Error())
@@ -184,7 +196,7 @@ var _ = Describe("ROSACTL CLI E2E Tests", Ordered, func() {
 	It("should be able to create the cluster-iam", Label("iam-create", "setup"), func() {
 		GinkgoWriter.Printf("Creating new cluster-iam: %s\n", clusterName)
 		cmd := exec.Command(ROSACTL_BIN, "cluster-iam", "create", clusterName, "--region", region)
-		cmd.Env = append(os.Environ(), customerEnv()...)
+		cmd.Env = customerEnv()
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
@@ -197,7 +209,7 @@ var _ = Describe("ROSACTL CLI E2E Tests", Ordered, func() {
 	It("should be able to list the cluster-iam and find that cluster in the list", Label("iam-list", "setup"), func() {
 		GinkgoWriter.Printf("Listing cluster-iam: %s\n", clusterName)
 		cmd := exec.Command(ROSACTL_BIN, "cluster-iam", "list", "--region", region)
-		cmd.Env = append(os.Environ(), customerEnv()...)
+		cmd.Env = customerEnv()
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			Fail("Failed to list the cluster-iam: " + err.Error())
@@ -231,7 +243,7 @@ var _ = Describe("ROSACTL CLI E2E Tests", Ordered, func() {
 	It("should be able to create the hcp cluster", Label("hcp-create", "create"), func() {
 		GinkgoWriter.Printf("Creating new HCP cluster: %s\n", clusterName)
 		cmd := exec.Command(ROSACTL_BIN, "cluster", "create", clusterName, "--region", region, "--output", "json")
-		cmd.Env = append(os.Environ(), customerEnv()...)
+		cmd.Env = customerEnv()
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
@@ -306,7 +318,7 @@ var _ = Describe("ROSACTL CLI E2E Tests", Ordered, func() {
 		}
 		GinkgoWriter.Printf("HCP cluster cloud url: %s\n", cloudUrl)
 		cmd := exec.Command(ROSACTL_BIN, "cluster-oidc", "create", clusterName, "--region", region, "--oidc-issuer-url", cloudUrl)
-		cmd.Env = append(os.Environ(), customerEnv()...)
+		cmd.Env = customerEnv()
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
@@ -320,7 +332,7 @@ var _ = Describe("ROSACTL CLI E2E Tests", Ordered, func() {
 	It("should be able to list the cluster-oidc and find that cluster in the list", Label("oidc-list", "setup"), func() {
 		GinkgoWriter.Printf("Listing cluster-oidc: %s\n", clusterName)
 		cmd := exec.Command(ROSACTL_BIN, "cluster-oidc", "list", "--region", region)
-		cmd.Env = append(os.Environ(), customerEnv()...)
+		cmd.Env = customerEnv()
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			Fail("Failed to list the cluster-oidc: " + err.Error())
@@ -510,7 +522,7 @@ var _ = Describe("ROSACTL CLI E2E Tests", Ordered, func() {
 	It("should be able to delete the cluster-oidc", Label("oidc-delete", "cleanup"), func() {
 		GinkgoWriter.Printf("Deleting the cluster-oidc: %s\n", clusterName)
 		cmd := exec.Command(ROSACTL_BIN, "cluster-oidc", "delete", clusterName, "--region", region)
-		cmd.Env = append(os.Environ(), customerEnv()...)
+		cmd.Env = customerEnv()
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			Fail(fmt.Sprintf("Failed to delete the cluster-oidc: %v\nOutput:\n%s", err, string(output)))
@@ -531,7 +543,7 @@ var _ = Describe("ROSACTL CLI E2E Tests", Ordered, func() {
 			// before trying to delete the cluster-vpc, we should list and
 			// grep if the cluster-vpc is still there
 			cmd := exec.Command(ROSACTL_BIN, "cluster-vpc", "list", "--region", region)
-			cmd.Env = append(os.Environ(), customerEnv()...)
+			cmd.Env = customerEnv()
 			output, err := cmd.CombinedOutput()
 			if err != nil {
 				Fail(fmt.Sprintf("Failed to list the cluster-vpc: %v\nOutput:\n%s", err, string(output)))
@@ -542,7 +554,7 @@ var _ = Describe("ROSACTL CLI E2E Tests", Ordered, func() {
 			}
 
 			cmd = exec.Command(ROSACTL_BIN, "cluster-vpc", "delete", clusterName, "--region", region)
-			cmd.Env = append(os.Environ(), customerEnv()...)
+			cmd.Env = customerEnv()
 			// rosactl may block with its own internal wait
 			output, err = cmd.CombinedOutput()
 			if err == nil {
@@ -562,7 +574,7 @@ var _ = Describe("ROSACTL CLI E2E Tests", Ordered, func() {
 	It("should be able to delete the cluster-iam", Label("iam-delete", "cleanup"), func() {
 		GinkgoWriter.Printf("Deleting the cluster-iam: %s\n", clusterName)
 		cmd := exec.Command(ROSACTL_BIN, "cluster-iam", "delete", clusterName, "--region", region)
-		cmd.Env = append(os.Environ(), customerEnv()...)
+		cmd.Env = customerEnv()
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			Fail(fmt.Sprintf("Failed to delete the cluster-iam: %v\nOutput:\n%s", err, string(output)))
