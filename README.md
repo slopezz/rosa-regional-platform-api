@@ -32,7 +32,8 @@ flowchart LR
 
 ## API Documentation
 
-[View the full API spec (Swagger UI)](https://petstore.swagger.io/?url=https://raw.githubusercontent.com/openshift-online/rosa-regional-platform-api/main/openapi/openapi.yaml)
+- [View the full API spec (Swagger UI)](https://petstore.swagger.io/?url=https://raw.githubusercontent.com/openshift-online/rosa-regional-platform-api/main/openapi/openapi.yaml)
+- [ZOA Trusted Actions API Reference](docs/api/zoa-endpoints.md)
 
 ## Configuration
 
